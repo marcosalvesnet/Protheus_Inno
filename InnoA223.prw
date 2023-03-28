@@ -68,6 +68,7 @@ User Function FRTCODB1()  //Ponto de Entrada
 	Private cNumTer 	:= xNumCaixa()
 	Private cAtend  	:= ""
 	Private aFormPag	:={}
+	Private lIfood		:=.F.
 
 	Default cVndCartao	:=""	//Ultimo cartao lido na venda atual
 	Default aVndItens	:={}	//Itens para impressao no ECF
@@ -98,10 +99,26 @@ User Function FRTCODB1()  //Ponto de Entrada
 	//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
 	//³Validar se o codigo de produto digitado eh um cartao    ³
 	//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+	/*
+	If Subs(Alltrim(cCodProd),1,1)=="*"
+		cCodProd :=Subs(Alltrim(cCodProd),2)
+	EndIf
+	cCartao:= Strzero(Val(Alltrim(cCodProd)),5)
 
-	If Len(Alltrim(cCodProd))==4.And.Subs(Alltrim(cCodProd),1,1)=="0"
+	
+
+	Strzero(Val(Alltrim(cCodProd)),5)
+	*/
+	If (Len(Alltrim(cCodProd))==4.And.Subs(Alltrim(cCodProd),1,1)=="0") .OR. ;
+		(Len(Alltrim(cCodProd))==5.And.Subs(Alltrim(cCodProd),1,1)=="*") 
 		cCartao	:=Subs(Alltrim(cCodProd),2)
 		lProdFRT:= .F.	//Flag indica se o produto esta sendo digitado na tela de venda do front
+		
+		//Define flag para pedido Ifood
+		If Subs(Alltrim(cCodProd),1,1)=="*"
+			lIfood		:=.T.
+		EndIf
+
 		//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
 		//³Numero do registro anterior da reimpressao cupom fiscal ³
 		//³Variavel publica criada em INNO_002.prw contem o Numero ³
@@ -128,6 +145,14 @@ User Function FRTCODB1()  //Ponto de Entrada
 				Return {"00002"}
 			EndIf
 
+		ElseIf Subs(Alltrim(cCodProd),1,1)=="*"
+			cCartao:=""
+			nRet:=U_INNOA242(Subs(Alltrim(cCodProd),2))
+			If nRet==1
+				MsgInfo("Arquivo do Pedido Ifood não encontrado!!")
+			else
+				cCartao:="999"
+			EndIf	
 		EndIf
 		dbSelectArea("SZX")
 		//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
@@ -507,7 +532,13 @@ Static Function IA233KitTela(cCartao,cNumTer,cPdv)
 	oCupom:Add("Data :"+DToC(dDatabase)+Space(46)+"Hora :"+Time())
 	oCupom:Add("--------------------------------------------------------------------------")
 	oCupom:Add(PADC("CARTÃO DE CONSUMO",74))
-	oCupom:Add("CARTÃO  :"+If(Len(aNewProd)=0,cCartao,aNewProd[1,1])+Space(43)+"MICROTERMINAL :"+cNumTer)
+	If lIfood
+		oCupom:Add(PADC("PEDIDO IFOOD",74))
+		oCupom:Add("PEDIDO  :"+SZZ->ZZ_PEDIDO+Space(42)+"MICROTERMINAL :"+cNumTer)
+	else
+		oCupom:Add(PADC("CARTÃO DE CONSUMO",74))
+		oCupom:Add("CARTÃO  :"+If(Len(aNewProd)=0,cCartao,aNewProd[1,1])+Space(43)+"MICROTERMINAL :"+cNumTer)
+	EndIf
 	oCupom:Add("--------------------------------------------------------------------------")
 	oCupom:Add("ITEM   CÓDIGO           DESCRIÇãO         QTD   UNIT.    ATEND.    VALOR  ")		// "ITEM   CÓDIGO           DESCRIÇãO       "
 	oCupom:Add("--- ------------- --------------------- ------- ------ ---------- --------")
@@ -871,6 +902,27 @@ Static Function IA223F9Pgto(cCartao,oDlgInno,oVlrTotal,nVlrTotal,nVlrBruto,oCupo
 			MsgInfo("Identificado SINAL ENCOMENDA para este(s) pedido(s)")
 		EndIf
 	EndIf
+	//Verifica se e iFood
+	If lIfood
+		aPgtos:={}
+		//nPos:= Ascan( aFormPag,{|x| Trim(x[1]) =="IFOOD"})
+		cAdm:="030 - IFOOD         "
+
+		AAdd(aPgtos,	{dDataBase	,;			// 01-Data
+						nVlrPagar	,;			// 02-Valor
+						"CC"		,;			// 03-Forma
+						cAdm		,;			// 04-Administradora
+						" "			,;			// 05-Num Cartao
+						" "			,;			// 06-Agencia
+						" "			,;			// 07-Conta
+						""			,;			// 08-RG
+						" "			,;			// 09-Telefone
+						.F.			,;			// 10-Terceiro
+						1			,;			// 11-Moeda
+						"1"			,;			// 12-Digitos do cartao para TEFMULT
+						0 } 		)			// 13-Conceito de acrescimo financeiro separado
+	EndIf
+	
 	//Fim da verificacao de pagamento de SINAL
 
 	DEFINE MSDIALOG oFimVenda FROM 00,0 TO 305,320 PIXEL OF GetWndDefault() STYLE nOr(WS_VISIBLE, WS_POPUP) //COLOR CLR_WHITE,CLR_BLACK
@@ -2448,6 +2500,7 @@ User Function FRTEntreg() //Ponto de Entrada
 			SL2->(RecLock("SL2",.F.))
 			SL2->L2_VEND:= cVend
 			SL2->L2_TABELA:= SZZ->ZZ_TABELA // Atualizar a informação da tabela utilizada ifood?
+			SL2->L2_LOCALIZ:= SZZ->ZZ_PEDIDO // Numero do Pedido do Ifood
 			SL2->(MsUnLock())
 		EndIf
 		SZZ->ZZ_NUMERO	:= SL1->L1_NUM
@@ -2478,6 +2531,7 @@ User Function FRTEntreg() //Ponto de Entrada
 			SL1->L1_CLIENTE	:= INNO_CLI
 			SL1->L1_LOJA	:= INNO_LOJ
 			//SL1->L1_SITUA	:= "XX"
+			SL1->L1_NUMERO	:= SZZ->ZZ_PEDIDO
 			SL1->L1_LOJA	:= INNO_LOJ
 			SL1->( dbCommit() )
 			SL1->( msUnlock() )
@@ -2623,6 +2677,12 @@ User Function FRTEntreg() //Ponto de Entrada
 	INNO_IMP[1]:="E"
 	INNO_IMP[2]:=""
 	INFFechar("0",LjGetStation("PORTIF"))
+
+	//Renomear o arquivo do pedido Ifood para nao processar novamente
+	If File(INNO_AIF[1]+INNO_AIF[2])
+		FRENAME(  INNO_AIF[1]+INNO_AIF[2],   INNO_AIF[1]+"IFOOD_PEDIDO_"+dTos(ddataBase)+"_"+Right(INNO_AIF[2],8)) 
+	EndIf
+
 Return lRet
 
 /*

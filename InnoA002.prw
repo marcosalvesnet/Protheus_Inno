@@ -45,6 +45,9 @@ Public INNO_SAT
 Public INNO_HDF
 Public INNO_HDE
 
+Public INNO_AIF // PATH E NOME DO ARQUIVO Nome do arquivo Ifood
+Public INNO_CIF // Atualiza cadastro Ifood
+
 
 DEFAULT INNO_HDF 	:=-1
 DEFAULT INNO_HDE	:=-1
@@ -63,6 +66,10 @@ DEFAULT INNO_HDL	:= -1
 DEFAULT INNO_APGTOS	:= {}
 DEFAULT INNO_CPF	:= ""
 DEFAULT INNO_SAT	:= GetPvProfString("FILIAL_"+cFilAnt, "innosat"		, "", GetClientDir()+"INNO.INI")
+
+
+INNO_CIF   	:= GetPvProfString("INNO", "IFOODCARGA","1", GetRemoteIniName()) // Local dos arquivos pedido iFood - Sintaxe: GetPvProfString(cSecao, cChave, cPadrao, cServerIni) 
+INNO_AIF 	:= {"",""} //Path e Nome do Arquivo do pedido Ifood
 
 If INNO_HDL = -1
 	ConOut("Carregando INNODPH.DLL")
